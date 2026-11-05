@@ -61,6 +61,20 @@ const SCHEMA = [
         type: "number"
     },
     {
+        header: "per",
+        label: "Per (extracted UOM)",
+        required: false,
+        unique: false,
+        type: "string"
+    },
+    {
+        header: "total-quantity",
+        label: "Total Quantity",
+        required: false,
+        unique: false,
+        type: "string"
+    },
+    {
         header: "item-price",
         label: "Item Rate",
         required: true,
@@ -177,7 +191,95 @@ function renderSchemaChips() {
         el.schemaList.appendChild(chip);
     });
 }
+// per calculated function here -----
+function extractUOM(description) {
+    if (!description) return "";
 
+    const text = String(description)
+        .toLowerCase()
+        .replace(/,/g, " ");
+
+    // Find actual measurement
+    const pattern =
+        /(\d+(?:\.\d+)?)\s*(kilograms?|kgs?|kg|grams?|gms?|gm|g|milliliters?|millilitres?|ml|litres?|liters?|ltrs?|ltr|l|pieces?|pcs?|pc)\b/i;
+
+    const match = text.match(pattern);
+
+    if (!match) return "";
+
+    const value = parseFloat(match[1]);
+    const unit = match[2].toLowerCase();
+
+    // Normalize UOM
+    const unitMap = {
+        kg: "kg",
+        kgs: "kg",
+        kilogram: "kg",
+        kilograms: "kg",
+
+        g: "gm",
+        gm: "gm",
+        gms: "gm",
+        gram: "gm",
+        grams: "gm",
+
+        ml: "ml",
+        milliliter: "ml",
+        milliliters: "ml",
+        millilitre: "ml",
+        millilitres: "ml",
+
+        l: "ltr",
+        ltr: "ltr",
+        ltrs: "ltr",
+        liter: "ltr",
+        liters: "ltr",
+        litre: "ltr",
+        litres: "ltr",
+
+        pc: "pcs",
+        pcs: "pcs",
+        piece: "pcs",
+        pieces: "pcs"
+    };
+
+    // Detect packaging multiplier
+    let packCount = 1;
+
+    const packagingPatterns = [
+        /\b(?:pack|box|carton|case|set)\s+of\s+(\d+)\b/i,
+        /\b(\d+)\s*(?:boxes?|packs?|cartons?|cases?|sets?)\b/i,
+        /\b(\d+)\s*[x×]\s*(?=\d)/i
+    ];
+
+    for (const packagingPattern of packagingPatterns) {
+        const packMatch = text.match(packagingPattern);
+
+        if (packMatch) {
+            packCount = parseInt(packMatch[1], 10);
+            break;
+        }
+    }
+
+    // Calculate actual contents per purchased pack
+    const total = value * packCount;
+
+    return `${Number(total.toFixed(3))} ${unitMap[unit]}`;
+}
+
+/*----total quantity--*/
+function extractTotalQuantity(quantity, per) {
+    if (!quantity || !per) return "";
+
+    const match = String(per).match(/^(\d+(?:\.\d+)?)\s*(kg|gm|ml|ltr|pcs)$/i);
+
+    if (!match) return "";
+
+    const total = Number(quantity) * Number(match[1]);
+    const unit = match[2].toLowerCase();
+
+    return `${Number(total.toFixed(3))} ${unit}`;
+}
 /* ---------- Status helpers ---------- */
 function setStatus(type, message) {
     el.statusBox.hidden = !message;
@@ -270,32 +372,60 @@ function checkType(value, col) {
             return null;
     }
 }
-
 function validateRows(rows, mapping) {
     const valid = [];
     const invalid = [];
-    const seen = SCHEMA.map(() => new Map()); // per-column: value -> first row number
+    const seen = SCHEMA.map(() => new Map());
 
     rows.forEach((raw, index) => {
-        const rowNum = index + 2; // row 1 is the header line in the source file
+        const rowNum = index + 2;
         const values = [];
         const errors = [];
 
         mapping.forEach(({ col, actual }, c) => {
-            const original = actual === null || raw[actual] == null ? "" : String(raw[actual]);
-            const value = original.trim();
-            values.push(original);
+            const original = actual === null || raw[actual] == null
+                ? ""
+                : String(raw[actual]);
+
+            let value = original.trim();
+
+            // AUTOMATIC UOM EXTRACTION
+            if (col.header === "per") {
+                const productDescription = raw["product-name"] || "";
+                value = extractUOM(productDescription);
+            }
+
+            // AUTOMATIC TOTAL QUANTITY
+            if (col.header === "total-quantity") {
+                const quantity = raw["quantity-purchased"] || "";
+                const perIndex = SCHEMA.findIndex(
+                    item => item.header === "per"
+                );
+
+                const per = values[perIndex] || "";
+
+                value = extractTotalQuantity(quantity, per);
+            }
+
+            values.push(value);
 
             if (value === "") {
-                if (actual !== null && col.required) errors.push(`${labelOf(col)} is required but empty`);
-                return; // empty optional cell: skip other checks
+                if (actual !== null && col.required) {
+                    errors.push(`${labelOf(col)} is required but empty`);
+                }
+                return;
             }
+
             const typeError = checkType(value, col);
-            if (typeError) errors.push(`${labelOf(col)} ${typeError} (found "${value}")`);
+
+            if (typeError) {
+                errors.push(`${labelOf(col)} ${typeError} (found "${value}")`);
+            }
 
             if (col.pattern && !new RegExp(col.pattern).test(value)) {
                 errors.push(`${labelOf(col)} has an invalid format (found "${value}")`);
             }
+
             if (col.unique) {
                 if (seen[c].has(value)) {
                     errors.push(`${labelOf(col)} "${value}" is a duplicate of row ${seen[c].get(value)}`);
@@ -308,6 +438,7 @@ function validateRows(rows, mapping) {
         const record = { rowNum, values, errors };
         (errors.length ? invalid : valid).push(record);
     });
+
     return { valid, invalid };
 }
 
