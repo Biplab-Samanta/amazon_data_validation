@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Validator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <main class="wrap">
+        <header class="top">
+            <h1>CSV validator column extractor</h1>
+            <p>Upload a CSV, keep only the columns defined and download.</p>
+        </header>
+
+        <section class="panel">
+            <div class="upload-row">
+                <label class="file-btn" for="fileInput">Choose CSV file</label>
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+                <span id="fileName" class="file-name">No file selected</span>
+                <button id="processBtn" class="btn primary" disabled>Validate &amp; extract</button>
+            </div>
+            <div id="schemaList" class="schema-list"></div>
+            <div id="statusBox" class="status" role="status" hidden></div>
+        </section>
+
+        <section class="stats" id="statsSection">
+            <div class="stat"><span class="num" id="statTotal">0</span><span class="lbl">Total rows</span></div>
+            <div class="stat ok"><span class="num" id="statValid">0</span><span class="lbl">Valid rows</span></div>
+            <div class="stat bad"><span class="num" id="statInvalid">0</span><span class="lbl">Invalid rows</span></div>
+            <div class="stat"><span class="num" id="statSourceCols">0</span><span class="lbl">Source columns</span>
+            </div>
+            <div class="stat"><span class="num" id="statSelectedCols">0</span><span class="lbl">Columns extracted</span>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="actions">
+                <button id="downloadValidBtn" class="btn primary" disabled>Download valid data</button>
+                <button id="downloadInvalidBtn" class="btn danger" disabled>Download invalid data</button>
+            </div>
+        </section>
+
+        <section class="panel" id="errorPanel" hidden>
+            <h2>Validation errors <small id="errorNote"></small></h2>
+            <ul id="errorList" class="error-list"></ul>
+        </section>
+
+        <section class="panel">
+            <div class="preview-head">
+                <h2>Preview</h2>
+                <div class="tabs" role="tablist">
+                    <button id="tabValid" class="tab active" role="tab" disabled>Valid</button>
+                    <button id="tabInvalid" class="tab" role="tab" disabled>Invalid</button>
+                </div>
+            </div>
+            <p id="previewNote" class="note">Upload and process a file to see a preview.</p>
+            <div class="table-scroll">
+                <table id="previewTable">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
