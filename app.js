@@ -205,7 +205,7 @@ function extractUOM(description) {
 
     const match = text.match(pattern);
 
-    if (!match) return "";
+    if (!match) return "1 pcs";
 
     const value = parseFloat(match[1]);
     const unit = match[2].toLowerCase();
