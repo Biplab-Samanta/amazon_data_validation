@@ -75,9 +75,29 @@ const SCHEMA = [
         type: "string"
     },
     {
-        header: "item-price",
-        label: "Item Rate",
-        required: true,
+        header: "item-price-gst",
+        label: "Item Price (Without GST)",
+        type: "number",
+        required: false
+    },
+    {
+        header: "cgst",
+        label: "CGST (2.5%)",
+        required: false,
+        unique: false,
+        type: "number"
+    },
+    {
+        header: "sgst",
+        label: "SGST (2.5%)",
+        required: false,
+        unique: false,
+        type: "number"
+    },
+    {
+        header: "igst",
+        label: "IGST (5%)",
+        required: false,
         unique: false,
         type: "number"
     },
@@ -89,15 +109,8 @@ const SCHEMA = [
         type: "number"
     },
     {
-        header: "shipping-price",
-        label: "Shipping Price",
-        required: true,
-        unique: false,
-        type: "number"
-    },
-    {
-        header: "shipping-tax",
-        label: "Shipping Tax",
+        header: "item-price",
+        label: "Item Total Price",
         required: true,
         unique: false,
         type: "number"
@@ -121,7 +134,23 @@ const SCHEMA = [
         label: "Ship Country",
         required: true,
         unique: false,
-        type: "string"
+        type: "string",
+        aliases: ["ship country", "shipping country"],
+        transform: (value) => {
+            const country = String(value).trim().toUpperCase();
+
+            const countries = {
+                "IN": "India",
+                "IND": "India",
+                "INDIA": "India",
+                "US": "United States",
+                "USA": "United States",
+                "UK": "United Kingdom",
+                "GB": "United Kingdom"
+            };
+
+            return countries[country] || value;
+        }
     },
     {
         header: "gstin",
@@ -139,7 +168,7 @@ const SCHEMA = [
 /* Display settings (not column settings) */
 const PREVIEW_LIMIT = 1000;      // rows shown in the preview table
 const MAX_ERRORS_SHOWN = 100;   // errors listed in the error panel
-
+const SELLER_STATE = "west bengal";
 /*  Everything below is generic  */
 
 const $ = (id) => document.getElementById(id);
@@ -179,6 +208,63 @@ function checkSchema() {
     }
     return null;
 }
+
+
+
+
+// date formating 
+function formatDate(dateString) {
+    if (!dateString) return "";
+
+    const date = new Date(dateString);
+
+    if (isNaN(date)) return "";
+
+    return `${date.getUTCDate()}-${date.toLocaleString("en-US", {
+        month: "short",
+        timeZone: "UTC"
+    }).toUpperCase()}-${date.getUTCFullYear()}`;
+}
+
+// tax calculate  should add here---
+
+// ---------- GST DISTRIBUTION ----------
+function splitItemTax(totalTax, sellerState, shippingState) {
+
+    totalTax = Number(totalTax) || 0;
+
+    const seller = String(sellerState)
+        .trim()
+        .toLowerCase();
+
+    const buyer = String(shippingState)
+        .trim()
+        .toLowerCase();
+
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+
+    if (seller === buyer) {
+
+        cgst = Number((totalTax / 2).toFixed(2));
+
+        // Remaining amount avoids rounding mismatch
+        sgst = Number((totalTax - cgst).toFixed(2));
+
+    } else {
+
+        igst = Number(totalTax.toFixed(2));
+
+    }
+
+    return {
+        cgst,
+        sgst,
+        igst
+    };
+}
+
 
 function renderSchemaChips() {
     el.schemaList.innerHTML = "";
@@ -388,7 +474,49 @@ function validateRows(rows, mapping) {
                 : String(raw[actual]);
 
             let value = original.trim();
+    
+            // item acual price calculate ----
+            function calculateBasePrice(totalPrice, itemTax) {
+                return Number((Number(totalPrice) - Number(itemTax)).toFixed(2));
+            }
 
+
+            if (col.header === "item-price-gst") {
+
+                const totalPrice = raw["item-price"] || 0;
+                const itemTax = raw["item-tax"] || 0;
+
+                value = calculateBasePrice(totalPrice, itemTax).toFixed(2);
+            }
+
+            // APPLY SCHEMA TRANSFORMATION-----
+            if (col.transform) {
+                value = col.transform(value);
+            }
+
+            // AUTOMATIC ITEM GST EXTRACTION
+            // ---------- AUTOMATIC GST DISTRIBUTION ----------
+
+            if (["cgst", "sgst", "igst"].includes(col.header)) {
+
+                const totalTax = Number(raw["item-tax"]) || 0;
+
+                const shippingState = raw["ship-state"] || "";
+
+                const taxSplit = splitItemTax(
+                    totalTax,
+                    SELLER_STATE,
+                    shippingState
+                );
+
+                value = taxSplit[col.header].toFixed(2);
+            }
+
+
+            // FORMAT PURCHASE DATE
+            if (col.header === "purchase-date") {
+                value = formatDate(value);
+            }
             // AUTOMATIC UOM EXTRACTION
             if (col.header === "per") {
                 const productDescription = raw["product-name"] || "";
@@ -750,3 +878,24 @@ el.tabInvalid.addEventListener("click", () => { state.activeTab = "invalid"; ren
 renderSchemaChips();
 const initialProblem = checkSchema();
 if (initialProblem) setStatus("error", initialProblem);
+
+
+
+// backend connected -------
+
+async function testBackend() {
+    try {
+        const response = await fetch(
+            "http://localhost:8000/api/health"
+        );
+
+        const data = await response.json();
+
+        console.log("Backend response:", data);
+
+    } catch (error) {
+        console.error("Backend connection failed:", error);
+    }
+}
+
+testBackend();
