@@ -39,16 +39,17 @@ const SCHEMA = [
         type: "string",
         aliases: ["sales Ledger", "sales ledger"]
     },
-    {
-        header: "product-name",
-        label: "Item Name",
-        required: true,
-        unique: false,
-        type: "string"
-    },
+    // {
+    //     header: "product-name",
+    //     label: "Item Name",
+    //     required: true,
+    //     unique: false,
+    //     type: "string"
+    // },
+
     {
         header: "sku",
-        label: "SKU",
+        label: "Item Name",
         required: true,
         unique: false,
         type: "string"
@@ -61,56 +62,71 @@ const SCHEMA = [
         type: "number"
     },
     {
-        header: "per",
-        label: "Per (extracted UOM)",
+        header: "item-rate",
+        label: "Item Rate",
         required: false,
         unique: false,
-        type: "string"
+        type: "number"
     },
+    // {
+    //     header: "per",
+    //     label: "Per (extracted UOM)",
+    //     required: false,
+    //     unique: false,
+    //     type: "string"
+    // },
     {
-        header: "total-quantity",
-        label: "Total Quantity",
+        header: "per",
+        label: "Per",
         required: false,
         unique: false,
-        type: "string"
+        type: "string",
+        transform: () => "nos"
     },
+    // {
+    //     header: "total-quantity",
+    //     label: "Total Quantity",
+    //     required: false,
+    //     unique: false,
+    //     type: "string"
+    // },
     {
         header: "item-price-gst",
-        label: "Item Price (Without GST)",
+        label: "Item Basic Amount",
         type: "number",
         required: false
     },
     {
         header: "cgst",
-        label: "CGST (2.5%)",
+        label: "CGST",
         required: false,
         unique: false,
         type: "number"
     },
     {
         header: "sgst",
-        label: "SGST (2.5%)",
+        label: "SGST",
         required: false,
         unique: false,
         type: "number"
     },
     {
         header: "igst",
-        label: "IGST (5%)",
+        label: "IGST",
         required: false,
         unique: false,
         type: "number"
     },
-    {
-        header: "item-tax",
-        label: "Item Tax",
-        required: true,
-        unique: false,
-        type: "number"
-    },
+    // {
+    //     header: "item-tax",
+    //     label: "Item Tax",
+    //     required: true,
+    //     unique: false,
+    //     type: "number"
+    // },
     {
         header: "item-price",
-        label: "Item Total Price",
+        label: "Total bill Value",
         required: true,
         unique: false,
         type: "number"
@@ -151,14 +167,14 @@ const SCHEMA = [
 
             return countries[country] || value;
         }
-    },
-    {
-        header: "gstin",
-        label: "GSTIN",
-        required: false,
-        unique: false,
-        type: "string"
     }
+    // {
+    //     header: "gstin",
+    //     label: "GSTIN",
+    //     required: false,
+    //     unique: false,
+    //     type: "string"
+    // }
 
 
 ];
@@ -209,7 +225,16 @@ function checkSchema() {
     return null;
 }
 
+// item rate calculate 
 
+function calculateItemRate(basePrice, quantity) {
+    const price = Number(basePrice) || 0;
+    const qty = Number(quantity) || 0;
+
+    if (qty <= 0) return 0;
+
+    return Number((price / qty).toFixed(2));
+}
 
 
 // date formating 
@@ -474,7 +499,7 @@ function validateRows(rows, mapping) {
                 : String(raw[actual]);
 
             let value = original.trim();
-    
+
             // item acual price calculate ----
             function calculateBasePrice(totalPrice, itemTax) {
                 return Number((Number(totalPrice) - Number(itemTax)).toFixed(2));
@@ -517,8 +542,14 @@ function validateRows(rows, mapping) {
             if (col.header === "purchase-date") {
                 value = formatDate(value);
             }
-            // AUTOMATIC UOM EXTRACTION
+
+            // per shows always nos 
             if (col.header === "per") {
+                value = "nos";
+            }
+
+            // AUTOMATIC UOM EXTRACTION
+            if (col.header === "weight") {
                 const productDescription = raw["product-name"] || "";
                 value = extractUOM(productDescription);
             }
@@ -527,12 +558,23 @@ function validateRows(rows, mapping) {
             if (col.header === "total-quantity") {
                 const quantity = raw["quantity-purchased"] || "";
                 const perIndex = SCHEMA.findIndex(
-                    item => item.header === "per"
+                    item => item.header === "weight"
                 );
 
                 const per = values[perIndex] || "";
 
                 value = extractTotalQuantity(quantity, per);
+            }
+            // AUTOMATIC ITEM RATE CALCULATION
+            if (col.header === "item-rate") {
+
+                const totalPrice = Number(raw["item-price"]) || 0;
+                const itemTax = Number(raw["item-tax"]) || 0;
+                const quantity = Number(raw["quantity-purchased"]) || 0;
+
+                const basePrice = calculateBasePrice(totalPrice, itemTax);
+
+                value = calculateItemRate(basePrice, quantity).toFixed(2);
             }
 
             values.push(value);
@@ -848,7 +890,8 @@ function handleParsed(results) {
 function downloadExcel(records, includeErrors, suffix) {
 
     // Excel column headers
-    const fields = SCHEMA.map(col => col.header);
+    // const fields = SCHEMA.map(col => col.header);
+    const fields = SCHEMA.map(col => col.label || col.header);
 
     if (includeErrors) {
         fields.push("Validation Errors");
