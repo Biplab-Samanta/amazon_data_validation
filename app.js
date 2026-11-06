@@ -845,20 +845,72 @@ function handleParsed(results) {
 }
 
 /* ---------- Downloads ---------- */
-function downloadCsv(records, includeErrors, suffix) {
-    const fields = SCHEMA.map((c) => c.header);
-    if (includeErrors) fields.push("Validation Errors");
-    const data = records.map((r) => includeErrors ? r.values.concat(["Row " + r.rowNum + ": " + r.errors.join("; ")]) : r.values);
-    const csv = Papa.unparse({ fields, data });
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    const base = (state.file && state.file.name ? state.file.name : "data").replace(/\.csv$/i, "");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${base}_${suffix}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+function downloadExcel(records, includeErrors, suffix) {
+
+    // Excel column headers
+    const fields = SCHEMA.map(col => col.header);
+
+    if (includeErrors) {
+        fields.push("Validation Errors");
+    }
+
+    // Prepare Excel data
+    const data = records.map(record => {
+
+        const values = record.values.map((value, index) => {
+
+            const col = SCHEMA[index];
+
+            // Convert numeric columns into actual Excel numbers
+            if (
+                ["number", "integer"].includes(col.type) &&
+                value !== "" &&
+                Number.isFinite(Number(value))
+            ) {
+                return Number(value);
+            }
+
+            // Keep other values as text
+            return value;
+        });
+
+        if (includeErrors) {
+            values.push(
+                "Row " + record.rowNum + ": " + record.errors.join("; ")
+            );
+        }
+
+        return values;
+    });
+
+    // Create worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet([
+        fields,
+        ...data
+    ]);
+
+    // Set column widths
+    worksheet["!cols"] = fields.map(field => ({
+        wch: Math.max(field.length + 5, 18)
+    }));
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Validated Data"
+    );
+
+    // Generate filename
+    const base = (state.file?.name || "data")
+        .replace(/\.(csv|xlsx|xls)$/i, "");
+
+    const filename = `${base}_${suffix}.xlsx`;
+
+    // Download Excel file
+    XLSX.writeFile(workbook, filename);
 }
 
 /* ---------- Events ---------- */
@@ -870,8 +922,13 @@ el.fileInput.addEventListener("change", () => {
     setStatus("", "");
 });
 el.processBtn.addEventListener("click", processFile);
-el.downloadValidBtn.addEventListener("click", () => downloadCsv(state.validRows, false, "valid"));
-el.downloadInvalidBtn.addEventListener("click", () => downloadCsv(state.invalidRows, true, "invalid"));
+el.downloadValidBtn.addEventListener("click", () =>
+    downloadExcel(state.validRows, false, "valid")
+);
+
+el.downloadInvalidBtn.addEventListener("click", () =>
+    downloadExcel(state.invalidRows, true, "invalid")
+);
 el.tabValid.addEventListener("click", () => { state.activeTab = "valid"; renderPreview(); });
 el.tabInvalid.addEventListener("click", () => { state.activeTab = "invalid"; renderPreview(); });
 
