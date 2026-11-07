@@ -39,17 +39,17 @@ const SCHEMA = [
         type: "string",
         aliases: ["sales Ledger", "sales ledger"]
     },
-    // {
-    //     header: "product-name",
-    //     label: "Item Name",
-    //     required: true,
-    //     unique: false,
-    //     type: "string"
-    // },
+    {
+        header: "product-name",
+        label: "Item basic Name",
+        required: true,
+        unique: false,
+        type: "string"
+    },
 
     {
         header: "sku",
-        label: "Item Name",
+        label: "Item SKU",
         required: true,
         unique: false,
         type: "string"
@@ -98,15 +98,15 @@ const SCHEMA = [
         required: false
     },
     {
-        header: "cgst",
-        label: "CGST",
+        header: "sgst",
+        label: "SGST",
         required: false,
         unique: false,
         type: "number"
     },
     {
-        header: "sgst",
-        label: "SGST",
+        header: "cgst",
+        label: "CGST",
         required: false,
         unique: false,
         type: "number"
@@ -168,14 +168,26 @@ const SCHEMA = [
 
             return countries[country] || value;
         }
-    }
-    // {
-    //     header: "gstin",
-    //     label: "GSTIN",
-    //     required: false,
-    //     unique: false,
-    //     type: "string"
-    // }
+    },
+   {
+    header: "gstin",
+    label: "GSTIN",
+    required: false,
+    unique: false,
+    type: "gstin    ",
+    aliases: [
+        "gstin",
+        "gst no",
+        "gst number",
+        "gst registration number",
+        "seller gstin",
+        "seller gst number",
+        "supplier gstin",
+        "supplier gst number"
+    ],
+    pattern: "^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$",
+    transform: (value) => String(value).trim().toUpperCase()
+}
 
 
 ];
@@ -473,13 +485,30 @@ function mapColumns(sourceHeaders) {
 function checkType(value, col) {
     switch (col.type) {
         case "number":
-            return value !== "" && Number.isFinite(Number(value)) ? null : "must be a number";
+            return value !== "" && Number.isFinite(Number(value))
+                ? null
+                : "must be a number";
+
         case "integer":
-            return /^-?\d+$/.test(value) ? null : "must be a whole number";
+            return /^-?\d+$/.test(value)
+                ? null
+                : "must be a whole number";
+
         case "date":
-            return Number.isNaN(Date.parse(value)) ? "must be a valid date" : null;
+            return Number.isNaN(Date.parse(value))
+                ? "must be a valid date"
+                : null;
+
         case "email":
-            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? null : "must be a valid email address";
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+                ? null
+                : "must be a valid email address";
+
+        case "gstin":
+            return /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(value)
+                ? null
+                : "must be a valid 15-character GSTIN format";
+
         default:
             return null;
     }
