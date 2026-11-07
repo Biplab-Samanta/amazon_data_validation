@@ -909,22 +909,18 @@ function handleParsed(results) {
 /* ---------- Downloads ---------- */
 function downloadExcel(records, includeErrors, suffix) {
 
-    // Excel column headers
-    // const fields = SCHEMA.map(col => col.header);
     const fields = SCHEMA.map(col => col.label || col.header);
 
     if (includeErrors) {
         fields.push("Validation Errors");
     }
 
-    // Prepare Excel data
     const data = records.map(record => {
 
         const values = record.values.map((value, index) => {
 
             const col = SCHEMA[index];
 
-            // Convert numeric columns into actual Excel numbers
             if (
                 ["number", "integer"].includes(col.type) &&
                 value !== "" &&
@@ -933,7 +929,6 @@ function downloadExcel(records, includeErrors, suffix) {
                 return Number(value);
             }
 
-            // Keep other values as text
             return value;
         });
 
@@ -946,18 +941,46 @@ function downloadExcel(records, includeErrors, suffix) {
         return values;
     });
 
-    // Create worksheet
     const worksheet = XLSX.utils.aoa_to_sheet([
         fields,
         ...data
     ]);
 
-    // Set column widths
+    // APPLY TWO DECIMAL PLACES IN EXCEL
+    records.forEach((record, rowIndex) => {
+
+        record.values.forEach((value, colIndex) => {
+
+            const col = SCHEMA[colIndex];
+
+            // Do not apply decimal formatting to Item Quantity
+            if (
+                col.type === "number" &&
+                col.header !== "quantity-purchased" &&
+                value !== "" &&
+                Number.isFinite(Number(value))
+            ) {
+
+                const cellAddress = XLSX.utils.encode_cell({
+                    r: rowIndex + 1,
+                    c: colIndex
+                });
+
+                if (worksheet[cellAddress]) {
+                    worksheet[cellAddress].t = "n";
+                    worksheet[cellAddress].z = "0.00";
+                }
+            }
+
+        });
+
+    });
+
+    // Column widths
     worksheet["!cols"] = fields.map(field => ({
         wch: Math.max(field.length + 5, 18)
     }));
 
-    // Create workbook
     const workbook = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(
@@ -966,13 +989,11 @@ function downloadExcel(records, includeErrors, suffix) {
         "Validated Data"
     );
 
-    // Generate filename
     const base = (state.file?.name || "data")
         .replace(/\.(csv|xlsx|xls)$/i, "");
 
     const filename = `${base}_${suffix}.xlsx`;
 
-    // Download Excel file
     XLSX.writeFile(workbook, filename);
 }
 
