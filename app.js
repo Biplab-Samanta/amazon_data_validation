@@ -543,18 +543,18 @@ function validateRows(rows, mapping) {
                 value = formatDate(value);
             }
 
-            // per shows always nos 
+            // per shows always nos ---------
             if (col.header === "per") {
                 value = "nos";
             }
 
-            // AUTOMATIC UOM EXTRACTION
+            // AUTOMATIC UOM EXTRACTION ----------
             if (col.header === "weight") {
                 const productDescription = raw["product-name"] || "";
                 value = extractUOM(productDescription);
             }
 
-            // AUTOMATIC TOTAL QUANTITY
+            // AUTOMATIC TOTAL QUANTITY ---------
             if (col.header === "total-quantity") {
                 const quantity = raw["quantity-purchased"] || "";
                 const perIndex = SCHEMA.findIndex(
@@ -565,7 +565,7 @@ function validateRows(rows, mapping) {
 
                 value = extractTotalQuantity(quantity, per);
             }
-            // AUTOMATIC ITEM RATE CALCULATION
+            // AUTOMATIC ITEM RATE CALCULATION -----------
             if (col.header === "item-rate") {
 
                 const totalPrice = Number(raw["item-price"]) || 0;
